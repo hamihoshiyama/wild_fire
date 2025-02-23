@@ -1,0 +1,330 @@
+<<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>🔥 CaliforniaFire Class Prediction 🔥</title>
+    <!-- Leaflet.js for map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow: hidden;
+            font-family: 'Bebas Neue', sans-serif;
+        }
+
+        /* Map as background */
+        #map {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            width: 100%;
+            z-index: 1;
+        }
+
+        .title {
+            position: absolute;
+            top: 20px;
+            right: 30px;
+            z-index: 2;
+            font-size: 20px;
+            font-weight: bold;
+            color: rgb(255, 0, 0);
+            background-color: rgb(242, 242, 242);
+            padding: 10px 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        }
+
+        .input-form {
+            position: absolute;
+            top: 40px;
+            left: 100px;
+            background-color: rgba(255, 255, 255, 0.9);
+            padding: 20px;
+            border-radius: 10px;
+            z-index: 2;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+
+        input, select {
+            padding: 10px;
+            width: 220px;
+            margin: 10px 0;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-family: Helvetica, Arial, sans-serif;
+        }
+
+        button {
+            padding: 10px 20px;
+            background-color: #ff5722;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            width: 100%;
+        }
+
+        button:hover {
+            background-color: #e64a19;
+        }
+
+        .close-btn {
+            position: absolute;
+            top: 5px;
+            right: 10px;
+            cursor: pointer;
+            font-size: 18px;
+            font-weight: bold;
+            color: #888;
+            transition: color 0.3s ease;
+        }
+
+        .close-btn:hover {
+            color: #000;
+        }
+
+        .prediction-box, .error-box {
+            position: absolute;
+            bottom: 300px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(255, 255, 255, 0.9);
+            padding: 20px;
+            border-radius: 10px;
+            z-index: 2;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            text-align: center;
+            width: 500px;
+        }
+
+        .error-box {
+            border: 2px solid red;
+            color: red;
+        }
+
+        .fire-animation {
+            font-size: 2em;
+            display: inline-block;
+            animation: flicker 1s infinite alternate ease-in-out;
+        }
+
+        @keyframes flicker {
+            0% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.8; transform: scale(1.1); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+
+        .description-text {
+            font-size: 30px;
+            margin-top: 10px;
+            font-weight: bold;
+        }
+
+        .flashing {
+            animation: flash 1s infinite alternate ease-in-out;
+            font-size: 1.5em;
+            color: red;
+        }
+
+        @keyframes flash {
+            0% { opacity: 1; }
+            50% { opacity: 0.4; }
+            100% { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Map -->
+    <div id="map"></div>
+
+    <!-- Title -->
+    <div class="title">🔥 WILDFIRE LEVEL PREDICTION 🔥</div>
+
+    <!-- Input Form -->
+    <div class="input-form">
+        <form id="predictForm">
+            <input type="text" id="latitude" name="latitude" placeholder="Latitude" required><br>
+            <input type="text" id="longitude" name="longitude" placeholder="Longitude" required><br>
+            <input type="number" id="month" name="month" placeholder="Month (1-12)" required><br>
+            <input type="number" id="day" name="day" placeholder="Day (1-31)" required><br>
+            <button type="submit">Predict Fire Class</button>
+        </form>
+    </div>
+
+    <!-- Prediction Result or Error -->
+    <div id="output"></div>
+
+    <!-- Leaflet.js Map Script -->
+    <script>
+        var map = L.map('map').setView([38, -122], 7); 
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+
+        var marker;
+
+        // Define California Bounds
+        const californiaBounds = {
+            north: 42.0,
+            south: 32.5,
+            west: -124.5,
+            east: -114.0
+        };
+
+        // Function to check if coordinates are within California
+        function isWithinCalifornia(lat, lng) {
+            return (
+                lat >= californiaBounds.south &&
+                lat <= californiaBounds.north &&
+                lng >= californiaBounds.west &&
+                lng <= californiaBounds.east
+            );
+        }
+
+        // Handle Map Click
+        function onMapClick(e) {
+            const lat = e.latlng.lat.toFixed(5);
+            const lng = e.latlng.lng.toFixed(5);
+
+            // Update input fields
+            document.getElementById('latitude').value = lat;
+            document.getElementById('longitude').value = lng;
+
+            // Place marker
+            placeMarker(lat, lng);
+        }
+
+        map.on('click', onMapClick);
+
+        // Place marker on map
+        function placeMarker(lat, lng) {
+            if (marker) {
+                map.removeLayer(marker);
+            }
+
+            marker = L.marker([lat, lng]).addTo(map)
+                .bindPopup(`Selected Location:<br>Lat: ${lat}<br>Lng: ${lng}`)
+                .openPopup();
+        }
+
+        fetch('https://raw.githubusercontent.com/codeforamerica/click_that_hood/master/public/data/california-counties.geojson')
+        .then(response => response.json())
+        .then(data => {
+            L.geoJSON(data, {
+                style: function() {
+                    return {
+                        color: '#d60f0f',  
+                        weight: 1,
+                        fillOpacity: 0    
+                    };
+                }
+            }).addTo(map);
+        });
+
+        // Handle Form Submission
+        document.getElementById('predictForm').addEventListener('submit', function(event) {
+            event.preventDefault();
+            const lat = parseFloat(document.getElementById('latitude').value);
+            const lng = parseFloat(document.getElementById('longitude').value);
+            const month = parseInt(document.getElementById('month').value);
+            const day = parseInt(document.getElementById('day').value);
+
+            
+            document.getElementById('output').innerHTML = '';
+
+            
+            if (isNaN(lat) || isNaN(lng) || !isWithinCalifornia(lat, lng)) {
+                showError("Invalid location! Please select a point within California.");
+                return;
+            }
+
+            if (month < 1 || month > 12) {
+                showError("Invalid month! Please enter a value between 1 and 12.");
+                return;
+            }
+
+            if (day < 1 || day > 31) {
+                showError("Invalid day! Please enter a value between 1 and 31.");
+                return;
+            }
+            if(month==2 && day > 29){
+                showError("Invalid day! Please enter a valid date.");
+                return;
+            }
+            if((month==4 || month ==6 || month == 9 || month ==11) && day>30){
+                showError("Invalid day! Please enter a valid date.");
+                return;
+            }
+
+            // Place marker
+            placeMarker(lat, lng);
+
+            // Simulate Fire Level Prediction (replace with real logic)
+            const fire_level = Math.floor(Math.random() * 7); // Random level for demo
+
+            showPrediction(fire_level);
+        });
+
+        // Display Prediction Result
+        function showPrediction(fire_level) {
+            const output = document.getElementById('output');
+            let message = '';
+
+            if (fire_level == 0) {
+                message = `<strong class="no-evacuation">🟢 No Evacuation Needed</strong><br><small>No Fire </small>`;
+            } else if (fire_level == 1) {
+                message = `<strong class="no-evacuation">🟢 No Evacuation Needed</strong><br><small>Small Fire (0.26 - 9.9 acres)</small>`;
+            } else if (fire_level == 2) {
+                message = `<strong class="prepare-evacuate">🟡 Be Prepared to Evacuate</strong><br><small>Medium Fire (10 - 99.9 acres)</small>`;
+            } else if (fire_level == 3) {
+                message = `<strong class="prepare-evacuate">🟡 Be Prepared to Evacuate</strong><br><small>Large Fire (100 - 299 acres)</small>`;
+            } else if (fire_level == 4) {
+                message = `<strong class="evacuate-now flashing">🔴 Evacuate Immediately!</strong><br><small>Very Large Fire (300 - 999 acres)</small>`;
+            } else if (fire_level == 5) {
+                message = `<strong class="evacuate-now flashing">🔴 Evacuate Immediately!</strong><br><small>Major Wildfire (1000 - 4999 acres)</small>`;
+            } else if (fire_level == 6) {
+                message = `<strong class="evacuate-now flashing">🚨 EVACUATE IMMEDIATELY!! 🚨</strong><br><small>Massive Wildfire (5000+ acres)</small>`;
+            }
+
+            // Add Fire Animations
+            message += `<div>`;
+            for (let i = 0; i <= fire_level; i++) {
+                message += `<span class="fire-animation">🔥</span>`;
+            }
+            message += `</div>`;
+
+            output.innerHTML = `
+            <div class="prediction-box">
+                <span class="close-btn" onclick="closeMessage(this)">✖</span>
+                ${message}
+            </div>
+    `;
+        }
+
+        // Display Error Message
+        function showError(msg) {
+        const output = document.getElementById('output');
+        output.innerHTML = `
+            <div class="error-box">
+                <span class="close-btn" onclick="closeMessage(this)">✖</span>
+                ${msg}
+            </div>
+        `;
+        }
+
+        function closeMessage(element) {
+            const messageBox = element.parentElement;
+            messageBox.remove();
+        }
+    </script>
+
+</body>
+</html>
