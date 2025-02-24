@@ -1,27 +1,40 @@
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, jsonify
 import joblib
 import pandas as pd
-
-#limit the months/ days they can put in 
-# make it so they can still click to edit long and lat 
-# prevent user from clicking to any other place except CA
+from flask_cors import CORS
 
 app = Flask(__name__)
+CORS(app)  
 
-model = joblib.load('fire_class_model.pkl')
+try:
+    model = joblib.load('fire_class_model.pkl')
+    app.logger.info("Model loaded successfully.")
+except Exception as e:
+    app.logger.error(f"Failed to load model: {e}")
 
 @app.route('/')
 def home():
     return render_template('index.html')
 
+@app.route('/fireinfo')
+def fireinfo():
+    # This is the page that shows the fire prediction details
+    return render_template('fireinfo.html')
+
 @app.route('/predict', methods=['POST'])
 def predict():
     try:
-        latitude = float(request.form['latitude'])
-        longitude = float(request.form['longitude'])
-        month = int(request.form['month'])
-        day = int(request.form['day'])
+        # Receive and log incoming data
+        data = request.get_json()
+        app.logger.info(f"📥 Received data: {data}")
 
+        # Parse input data
+        latitude = float(data['latitude'])
+        longitude = float(data['longitude'])
+        month = int(data['month'])
+        day = int(data['day'])
+
+        # Prepare input data for the model
         input_data = pd.DataFrame({
             'latitude': [latitude],
             'longitude': [longitude],
@@ -29,14 +42,26 @@ def predict():
             'day': [day]
         })
 
-        prediction = int(model.predict(input_data)[0])  
+        app.logger.info(f"🛠️ Prepared input data: {input_data}")
 
-        return render_template('index.html',
-                               prediction_text=f"Predicted Fire Class: {prediction}",
-                               fire_level=prediction)
+        # Make prediction
+        prediction = int(model.predict(input_data)[0])
+        app.logger.info(f"🔥 Prediction result: {prediction}")
+
+        # Return prediction
+        return jsonify({
+            'prediction_text': f"Predicted Fire Class: {prediction}",
+            'fire_level': prediction
+        })
 
     except Exception as e:
-        return render_template('index.html', prediction_text=f"Error: {e}")
+        app.logger.error(f"❗ Error during prediction: {e}")
+        return jsonify({'prediction_text': f"Error: {e}"})
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     app.run(debug=True)
+
+@app.route('/fireinfo')
+
+def fireinfo():
+  return render_template('fireinfo.html')
